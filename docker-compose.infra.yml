@@ -1,0 +1,45 @@
+# 基础设施一键脚本：仅用于全新环境（新机器/新服务器）。
+# 本机日常开发复用已有容器 local-mysql8 / local-redis / local-rabbitmq，不需要跑本文件。
+# 用法：docker compose -f docker-compose.infra.yml up -d
+#
+# ⚠️ 公网部署安全底线（宝塔阶段必须做）：
+# 1. 用环境变量覆盖以下默认弱口令（TRAVEL_INFRA_MYSQL_PASSWORD 等），改强口令；
+# 2. 6379(Redis 无密码)/15672(RabbitMQ 控制台) 不要映射到 0.0.0.0，
+#    改为 "127.0.0.1:6379:6379" 或用防火墙/安全组封外网。
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: travel-mysql
+    environment:
+      # 显式东八区：避免容器默认 UTC 导致提醒时间比较错位
+      TZ: Asia/Shanghai
+      MYSQL_ROOT_PASSWORD: "${TRAVEL_INFRA_MYSQL_PASSWORD:-123456}"
+      MYSQL_DATABASE: ai_travel
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "${TRAVEL_INFRA_MYSQL_BIND:-0.0.0.0}:3306:3306"
+    volumes:
+      - travel-mysql-data:/var/lib/mysql
+
+  redis:
+    image: redis:7
+    container_name: travel-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${TRAVEL_INFRA_REDIS_BIND:-127.0.0.1}:6379:6379"
+    volumes:
+      - travel-redis-data:/data
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: travel-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: "${TRAVEL_INFRA_MQ_USER:-travel}"
+      RABBITMQ_DEFAULT_PASS: "${TRAVEL_INFRA_MQ_PASSWORD:-travel123}"
+    ports:
+      - "5672:5672"
+      - "${TRAVEL_INFRA_MQ_CONSOLE_BIND:-127.0.0.1}:15672:15672"
+
+volumes:
+  travel-mysql-data:
+  travel-redis-data:

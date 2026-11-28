@@ -1,0 +1,108 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: travel-java
+  # 默认激活 local 配置：本地开发时从 ./application-local.yml 读取敏感配置（该文件已加入 .gitignore）
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
+  datasource:
+    # 只使用本项目专用库 ai_travel，不触碰实例上的其他库
+    url: jdbc:mysql://${TRAVEL_MYSQL_HOST:localhost}:${TRAVEL_MYSQL_PORT:3306}/${TRAVEL_MYSQL_DATABASE:ai_travel}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: ${TRAVEL_MYSQL_USERNAME:root}
+    password: ${TRAVEL_MYSQL_PASSWORD:}
+  data:
+    redis:
+      host: ${TRAVEL_REDIS_HOST:localhost}
+      port: ${TRAVEL_REDIS_PORT:6379}
+      # 共用实例上选定的空闲库位
+      database: ${TRAVEL_REDIS_DATABASE:3}
+  rabbitmq:
+    host: ${TRAVEL_RABBITMQ_HOST:localhost}
+    port: ${TRAVEL_RABBITMQ_PORT:5672}
+    username: ${TRAVEL_RABBITMQ_USERNAME:travel}
+    password: ${TRAVEL_RABBITMQ_PASSWORD:}
+    # broker 确认：投递丢失时由 ConfirmCallback 回滚 CAS，消息不静默丢
+    publisher-confirm-type: correlated
+    listener:
+      simple:
+        default-requeue-rejected: false
+        acknowledge-mode: manual
+
+  task:
+    scheduling:
+      # 提醒扫描与 SSE 心跳共用容器调度器，≥2 线程防止慢客户端拖垮整分扫描
+      pool:
+        size: 4
+  mail:
+    # 邮箱渠道：未配置时该渠道自动关闭，不影响其他渠道
+    host: ${TRAVEL_MAIL_HOST:}
+    # SMTP 超时（稳健性轮审查 P2-1）：JavaMail 默认无限，对端黑洞会让消费线程悬挂超
+    # 兜底扫描 5 分钟阈值 → 重投造成重复提醒；10s/10s/30s 把在途耗时压回论证范围内
+    connection-timeout: 10000
+    timeout: 10000
+    write-timeout: 30000
+    port: ${TRAVEL_MAIL_PORT:465}
+    username: ${TRAVEL_MAIL_USERNAME:}
+    password: ${TRAVEL_MAIL_AUTH_CODE:}
+    # 中文主题/正文编码必须显式声明：不配时回落 JVM 默认字符集，换 JDK17+GBK 平台会乱码
+    default-encoding: UTF-8
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.ssl.enable: true
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+  global-config:
+    banner: false
+
+llm:
+  base-url: ${TRAVEL_LLM_BASE_URL:https://api.siliconflow.cn/v1}
+  model: ${TRAVEL_LLM_MODEL:deepseek-ai/DeepSeek-V4.1-Flash}
+  # 密钥只放 application-local.yml 或环境变量，绝不入库
+  api-key: ${TRAVEL_LLM_API_KEY:}
+  # 每用户每日 LLM 调用配额（限流用）
+  daily-limit: ${TRAVEL_LLM_DAILY_LIMIT:50}
+  # Function Calling 单次对话最大工具调用轮数（防死循环）
+  max-tool-rounds: 5
+  # 生成随机性：行程推荐要稳定结构、对话允许发散，0.7 为通用折中（稳健性轮从代码常量入配置）
+  temperature: ${TRAVEL_LLM_TEMPERATURE:0.7}
+
+chat:
+  # 会话容量与单会话轮数上限（契约 §3.1；系统提示词里的告知数字由这两项注入）
+  max-conversations: ${CHAT_MAX_CONVERSATIONS:10}
+  max-rounds-per-conversation: ${CHAT_MAX_ROUNDS:20}
+
+jwt:
+  # HS256 签名密钥，只放 application-local.yml 或环境变量
+  secret: ${TRAVEL_JWT_SECRET:}
+  # token 有效期（小时）
+  expire-hours: 168
+
+wechat:
+  # 微信公众号测试号：未配置时渠道自动关闭
+  appid: ${TRAVEL_WECHAT_APPID:}
+  secret: ${TRAVEL_WECHAT_SECRET:}
+  token: ${TRAVEL_WECHAT_TOKEN:}
+  template-id: ${TRAVEL_WECHAT_TEMPLATE_ID:}
+
+# 渠道开关：渠道依赖的外部参数未配置时对应渠道不启用
+channels:
+  sse: ${TRAVEL_CHANNELS_SSE:true}
+  mail: ${TRAVEL_CHANNELS_MAIL:false}
+  wechat: ${TRAVEL_CHANNELS_WECHAT:false}
+
+# 跨域白名单：本地前端 dev 地址 + 内网网段模式 + 逗号分隔的额外来源（部署后加宝塔域名）。
+# 内网手机走 vite 代理时 POST 仍带 Origin（=本机内网 IP），后端按跨域校验，
+# 不在白名单就 403（页面能开、登录全挂的根因）；192.168.101.* 模式防 DHCP 换 IP 失效。
+# 注意：模式里 * 匹配任意字符串（仅协议/端口锚定）；整体替换变量值，禁止配 * 全放开
+cors:
+  allowed-origins: ${TRAVEL_CORS_ORIGINS:http://localhost:5173,http://127.0.0.1:5173,http://192.168.101.*:5173}
+
+logging:
+  level:
+    root: info
+    com.suxin.travel.traveljava: debug

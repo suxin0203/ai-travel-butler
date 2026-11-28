@@ -1,0 +1,61 @@
+# 测试环境配置（@ActiveProfiles("test") 时生效）
+# - 数据库用独立测试库 ai_travel_test，schema.sql 自动初始化（幂等）
+# - Redis 用独立空库 db4，避免污染开发库 db3
+# - LLM 一律不真实调用：api-key 留空，测试用假实现/低配额验证限流
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/ai_travel_test?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: root
+    password: "123456"
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+  task:
+    scheduling:
+      pool:
+        size: 4
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      database: 4
+  mail:
+    # 邮箱验证码测试：host/username 仅用于让 JavaMailSender 渠道判定通过，
+    # 真实发送被测试类的 @MockBean JavaMailSender 吞掉，不会触网
+    host: localhost
+    username: test-from@example.com
+    default-encoding: UTF-8
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: travel
+    password: "travel123"
+    publisher-confirm-type: correlated
+    listener:
+      simple:
+        default-requeue-rejected: false
+
+llm:
+  api-key: ""
+  daily-limit: 3
+
+jwt:
+  secret: "test-secret-0123456789abcdef0123456789abcdef"
+  expire-hours: 1
+
+wechat:
+  token: "test-wx-token"
+  appid: "wx-test-appid"
+  secret: "wx-test-secret"
+  template-id: "tmpl-test-1"
+
+channels:
+  sse: false
+  # 邮箱验证码链路测试需要渠道开启；真实 SMTP 由 @MockBean 吞掉
+  mail: true
+  wechat: false
+
+logging:
+  level:
+    com.suxin.travel.traveljava: info

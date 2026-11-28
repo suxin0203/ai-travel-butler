@@ -1,0 +1,30 @@
+# 敏感配置：本地开发配置文件一律不入库
+application-local.yml
+**/application-local.yml
+*.secret.yml
+
+# 构建产物
+target/
+build/
+dist/
+node_modules/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# 日志与临时文件
+*.log
+logs/
+.DS_Store
+
+# Maven 打包产物
+*.jar.original
+.playwright-mcp/
+AGENTS.md
+
+docs/进度.md
+docs/验收报告.md
+docs/待办.md
+docs/context.md

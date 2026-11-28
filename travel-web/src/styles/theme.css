@@ -1,0 +1,101 @@
+/* ============================================================
+   全局设计令牌与基础样式
+   风格定位：扁平柔和层次，单一卡片系统靠发丝线与主题色分层，无装饰渐变。
+   ============================================================ */
+:root {
+  /* 主题色：按钮/选中态/勾选框/时间线自动跟随 */
+  --van-primary-color: #2a6bf3;
+  /* 卡片圆角与轻投影（单一系统：一种卡片、一套圆角，靠发丝线分层而非彩色阴影） */
+  --van-cell-group-inset-radius: 14px;
+  --tt-radius: 14px;
+  --tt-shadow: 0 1px 4px rgba(23, 43, 99, 0.05);
+  --tt-text: #26292e;
+  --tt-text-sub: #969799;
+}
+
+body {
+  margin: 0;
+  background: #f3f5fa;
+  color: var(--tt-text);
+  font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.page { padding: 12px; padding-bottom: 66px; }
+
+/* 导航栏融入页面底色：透明背景、去发丝线、标题加粗 */
+.van-nav-bar { background: transparent; }
+.van-nav-bar::after { display: none; }
+.van-nav-bar .van-nav-bar__title { font-weight: 700; }
+
+/* 底部导航：轻毛玻璃悬浮感 */
+.van-tabbar {
+  --van-tabbar-background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(10px);
+}
+
+/* 分组卡片统一柔和投影，与各页自绘卡片同一视觉语言 */
+.van-cell-group--inset { box-shadow: var(--tt-shadow); }
+
+/* 准点提醒全局通知条支持多行（App.vue 全局 onNotify 用 \n 分事项与时间） */
+.van-notify { white-space: pre-line; }
+
+/* ============================================================
+   PC 端手机机身布局（≥768px，F14 从头重构版）
+   原则：把 #app 本身做成「手机」——机身绝不让位、绝不产生第二套滚动。
+   1) #app 固定 420px 宽、手机比例高、屏幕居中、大圆角+深色边框圈，自身 overflow:hidden；
+   2) transform 让 #app 成为所有 position:fixed 后代（底部导航/弹层/遮罩/toast/对话框）
+      的包含块——悬浮组件全部锚定机身，不再对视口定位（上一版「菜单跑出机身」的根因）；
+      函数式弹层默认 teleport 到 body 会脱离机身，已在 main.js 统一改挂 #app；
+   3) 每个视图根（#app 直接子元素）是机身内唯一滚动容器；各页的视口单位硬编码
+      （login 100vh / chat calc(100vh-50px) / 行程加载框 100vh）在机身内改按机身高度取值。
+   手机端（<768px）不进此分支，零影响。
+   ============================================================ */
+@media (min-width: 768px) {
+  body {
+    background: #e2e6ee;
+    /* 机身恒不超出视口，外层永不出现滚动条（防 100vh 亚像素取整抖动） */
+    overflow: hidden;
+  }
+  #app {
+    /* 四向 absolute + margin auto：水平、垂直都居中——
+       仅 margin:0 auto 在高屏（视口高于 880+48）时垂直贴顶，用户真机反馈过 */
+    position: absolute;
+    top: 24px;
+    bottom: 24px;
+    left: 0;
+    right: 0;
+    margin: auto;
+    width: 420px;
+    height: min(880px, calc(100vh - 48px));
+    border-radius: 44px;
+    overflow: hidden;              /* 机身自身不滚动：圆角裁剪 + 滚动条不出机身 */
+    background: #f3f5fa;
+    transform: translateZ(0);      /* 关键：成为 fixed 后代的包含块（原理见块头注释） */
+    box-shadow:
+      0 0 0 10px #1d2430,
+      0 0 0 12px rgba(255, 255, 255, 0.4),
+      0 32px 80px rgba(23, 43, 99, 0.3);
+  }
+  /* 视图根 = 机身内唯一滚动容器。用 :where() 包裹排除项（特异度归零，整体等同 #app > div），
+     排除两类非视图子元素：
+     - .van-tabbar__placeholder：底部导航占位壳，里面装着 fixed 导航，不能滚；
+     - #phone-layer：函数式弹层挂载层（App.vue/main.js），弹层是 fixed，自己不滚。
+     这样下方按页覆盖（#app > div.xxx，多一个类）恒压本规则；本规则又恒压视图
+     scoped 样式里的视口单位尺寸（data-v 属性选择器特异度更低），层级关系明确。 */
+  #app > div:where(:not(.van-tabbar__placeholder):not(#phone-layer)) {
+    height: 100%;
+    box-sizing: border-box;
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;  /* 滚到头不再把滚动链给机身外 */
+    scrollbar-width: none;         /* 手机没有常显滚动条，机身内同样隐藏（保持可滚） */
+  }
+  #app ::-webkit-scrollbar { width: 0; height: 0; }
+  /* 各页视口单位硬编码在机身内改按机身高度取值，消除「机身内再滚出 100vh」的双重滚动 */
+  #app > div.login-page { min-height: 0; }            /* 登录页 min-height:100vh → 恰好机身高 */
+  #app > div.chat-page { height: calc(100% - 50px); } /* 对话页 calc(100vh-50px) → 机身高减底部导航（输入区钉在导航上方） */
+  #app .loading-box { height: 100%; }                 /* 行程加载覆盖层 100vh → 即机身高度 */
+  /* 机身比手机屏矮的小窗口：底部弹层限高在机身内并可滚，长表单不会被裁得够不着 */
+  .van-popup--bottom { max-height: 100%; overflow-y: auto; }
+}
